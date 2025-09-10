@@ -24,7 +24,7 @@ COLLECTION_NAME = "annual_report"
 TOP_K = 5
 SEED  = 123
 
-def augment_query_generation(query: str, client: OpenAI, model: str = "gpt-4o-mini") -> str:
+def augment_query_generation(query: str, client: OpenAI, model: str = "gpt-4o") -> str:
     system_prompt = """
     You are a helpful expert financial research assistant. 
     Provide an example answer to the given question, that might be found in a document like an annual report.
