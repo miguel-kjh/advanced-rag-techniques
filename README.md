@@ -1,1 +1,1 @@
-# -advanced-rag-techniques
+# Advanced-rag-techniques
