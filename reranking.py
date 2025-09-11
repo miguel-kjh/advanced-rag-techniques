@@ -21,9 +21,28 @@ PDF_PATH = os.path.join(FOLDER, PDF_FILE)
 BD_PATH  = os.path.join(FOLDER, "chroma_db")
 COLLECTION_NAME = "annual_report"
 
-TOP_K = 10
-TOP_MOST_RELEVANT = 5
+TOP_K = 20
+TOP_MOST_RELEVANT = 10
 SEED  = 123
+
+def generate_answer(query: str, context: str, client: OpenAI, model: str = "gpt-4o") -> str:
+    system_prompt = """
+    You are a knowledgeable financial research assistant. 
+    Your users are inquiring about an annual report. 
+    Provide a concise and accurate answer based on the provided context from the document. 
+    If the context does not contain relevant information, respond with "The provided context does not contain information related to the question."
+    """
+    response = client.chat.completions.create(
+        model=model,
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": f"Context: {context}\n\nQuestion: {query}"},
+        ],
+        temperature=0,
+        seed=SEED,
+    )
+    answer = response.choices[0].message.content
+    return answer
 
 def create_db(texts: List[str], client: chromadb.PersistentClient, embedding_function: SentenceTransformerEmbeddingFunction) -> chromadb.api.models.Collection:
     collection = client.create_collection(name=COLLECTION_NAME, embedding_function=embedding_function)
@@ -103,65 +122,11 @@ def main():
     print(f"\nTop {TOP_MOST_RELEVANT} most relevant documents after reranking:")
     for i, doc in enumerate(top_docs):
         print(f"\nDocument {i+1}:\n{word_wrap(doc, width=100)}")
-    
-    
-    embeddings = collection.get(include=["embeddings"])["embeddings"]
-    umap_transform = umap.UMAP(random_state=SEED, transform_seed=SEED).fit(embeddings)
-    projected_dataset_embeddings = project_embeddings(embeddings, umap_transform)
 
-    retrieved_embeddings = results["embeddings"][0]
-    original_query_embedding = embedding_function([query])
-
-    projected_original_query_embedding = project_embeddings(
-        original_query_embedding, umap_transform
-    )
-    projected_retrieved_embeddings = project_embeddings(
-        retrieved_embeddings, umap_transform
-    )
-    # get the most relevant documents embeddings after reranking
-    top_docs_embeddings = embedding_function(top_docs)
-    projected_top_docs_embeddings = project_embeddings(
-        top_docs_embeddings, umap_transform
-    )
-
-
-    # Plot the projected query and retrieved documents in the embedding space
-    plt.figure()
-
-    plt.scatter(
-        projected_dataset_embeddings[:, 0],
-        projected_dataset_embeddings[:, 1],
-        s=10,
-        color="gray",
-    )
-    plt.scatter(
-        projected_retrieved_embeddings[:, 0],
-        projected_retrieved_embeddings[:, 1],
-        s=100,
-        facecolors="none",
-        edgecolors="g",
-    )
-    plt.scatter(
-        projected_original_query_embedding[:, 0],
-        projected_original_query_embedding[:, 1],
-        s=150,
-        marker="X",
-        color="r",
-    )
-    # plot the most relevant documents after reranking
-    plt.scatter(
-        projected_top_docs_embeddings[:, 0],
-        projected_top_docs_embeddings[:, 1],
-        s=100,
-        facecolors="none",
-        edgecolors="b",
-        marker="D"
-    )
-
-    plt.gca().set_aspect("equal", "datalim")
-    plt.title(f"{query}")
-    plt.axis("off")
-    plt.show()  # display the plot
+    # Generate answer based on the top most relevant documents
+    context = "\n\n".join(top_docs)
+    answer = generate_answer(query, context, openai_client)
+    print(f"\nAnswer:\n{word_wrap(answer, width=100)}")
 
 if __name__ == "__main__":
     main()
